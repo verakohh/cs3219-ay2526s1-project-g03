@@ -1,7 +1,6 @@
 services:
   # --- DATABASES ---
   # For local volume dockerized testing
-  # Commented out - using MongoDB Atlas instead
   # user-db-mongodb:
   #   image: mongo
   #   container_name: user-db-mongodb
@@ -17,7 +16,7 @@ services:
   # user-db-mongo-express:
   #   image: mongo-express
   #   container_name: user-db-mongo-express
-  #   restart: unless-stopped  
+  #   restart: unless-stopped
   #   ports:
   #     - 8084:8081
   #   env_file:
@@ -33,7 +32,7 @@ services:
     ports:
       - '5433:5432'
     volumes:
-      - question-data:/var/lib/postgresql/data 
+      - question-data:/var/lib/postgresql/data
       - ./question-service/db:/docker-entrypoint-initdb.d
       - ./history-service/db/init.sql:/docker-entrypoint-initdb.d/2-history-init.sql
     environment:
@@ -78,7 +77,6 @@ services:
       - question-service
       - matching-service
       - collaboration-service
-      - history-service
     networks:
       - app-network
 
@@ -100,7 +98,7 @@ services:
       - /app/node_modules
     networks:
       - app-network
-    # depends_on: # Commented out - using MongoDB Atlas instead of local container
+    # depends_on: # Uncomment if local volume
     #   - user-db-mongodb
     command: sh -c "npm run seed:admin || true && npm run dev" # for production change to npm start
 
@@ -137,18 +135,18 @@ services:
     networks:
       - app-network
 
-# --- UI for Postgres Database ---
+  # --- UI for Postgres Database ---
   adminer:
     image: adminer
     container_name: adminer-ui
     restart: unless-stopped
     ports:
-      - "8087:8080"
+      - '8087:8080'
     networks:
       - app-network
     depends_on:
       - question-db-pg
-  
+
   # Matching service
   matching-service:
     # ... (No changes needed)
@@ -204,7 +202,7 @@ services:
     env_file:
       - ./.env
     depends_on:
-    #   - user-db-mongodb # Uncomment if local volume
+      #   - user-db-mongodb # Uncomment if local volume
       question-db-pg:
         condition: service_healthy # Wait for DB to be ready
     volumes:
@@ -214,7 +212,24 @@ services:
       - app-network
     command: npm run dev
 
-
+  code-execution-service:
+    build:
+      context: ./code-execution-service
+      dockerfile: Dockerfile
+    ports:
+      - '8086:8086'
+    environment:
+      - PORT=8086
+    env_file:
+      - ./.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/code-execution:/tmp/code-execution
+      - ./code-execution-service:/app
+      - /app/node_modules
+    networks:
+      - app-network
+    command: npm run dev
 
 networks:
   app-network:

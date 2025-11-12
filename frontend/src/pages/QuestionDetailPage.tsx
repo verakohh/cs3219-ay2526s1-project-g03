@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // --- API & Auth Imports (from Logic) ---
 import useAuth from '../hooks/useAuth';
-import { getQuestionAttempts } from '../lib/api';
+import { getQuestionAttempts, getOtherUser } from '../lib/api';
 import { formatDurationMinutes } from '../lib/timeFormatters';
 
 // ... (interface Attempt definition is correct) ...
@@ -28,14 +28,13 @@ interface Attempt {
   session_id: string;
   user_id: string;
   partner_id: string;
-  partner_username?: string;
-  code: string | null;
-  is_solved_successfully: boolean | null;
+  code: string;
+  is_solved_successfully: boolean;
   has_penalty: boolean;
-  time_taken_ms: number | null;
+  time_taken_ms: number;
   is_active_in_history: boolean;
   started_at: string;
-  question_title?: string;
+  question_title: string;
 }
 
 export const QuestionDetail = () => {
@@ -44,16 +43,58 @@ export const QuestionDetail = () => {
   
   const { user } = useAuth();
   const userId = (user as any)?._id ?? (user as any)?.uid ?? '';
+  const [attempts, setAttempts] = useState<Attempt[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [usernames, setUsernames] = useState<Map<string, string>>(new Map());
 
-  // Fetch question attempts using useQuery
-  const {data: attempts, isLoading: loading, isError: error} = useQuery({
-    queryKey: ['questionAttempts', userId, questionId],
-    queryFn: () => getQuestionAttempts(userId, questionId || ''),
-    enabled: !!userId && !!questionId,
-  });
+  useEffect(() => {
+    if (!userId || !questionId) return;
+    
+    setLoading(true);
+    getQuestionAttempts(userId, questionId)
+      .then(d => {
+        setAttempts(Array.isArray(d) ? d : []);
+      })
+      .catch(() => {
+        setAttempts([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [userId, questionId]);
 
-  const questionTitle = attempts && attempts.length > 0 ? attempts[0]?.question_title : undefined;
-  const attemptsList = attempts || [];
+  // Fetch usernames for all unique partner IDs
+  useEffect(() => {
+    if (attempts.length === 0) return;
+
+    const fetchUsernames = async () => {
+      const uniquePartnerIds = [...new Set(attempts.map(a => a.partner_id).filter(id => id))];
+      const usernameMap = new Map<string, string>();
+
+      // Fetch usernames in parallel
+      await Promise.allSettled(
+        uniquePartnerIds.map(async (partnerId: string) => {
+          try {
+            const response = await getOtherUser(partnerId);
+            if (response?.data?.username) {
+              usernameMap.set(partnerId, response.data.username);
+            } else {
+              usernameMap.set(partnerId, partnerId);
+            }
+          } catch (error) {
+            console.error(`Failed to fetch username for partner ${partnerId}:`, error);
+            usernameMap.set(partnerId, partnerId);
+          }
+        })
+      );
+
+      setUsernames(usernameMap);
+    };
+
+    fetchUsernames();
+  }, [attempts]);
+
+  const questionTitle = attempts[0]?.question_title;
 
   // --- Helper function to guess language ---
   // This is a simple guesser. You can improve it.
@@ -78,7 +119,7 @@ export const QuestionDetail = () => {
      );
   }
 
-  if (error || !questionTitle || attemptsList.length === 0) {
+  if (!questionTitle && !loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-background-accent">
         {/* ... (Not Found page is correct) ... */}
@@ -107,9 +148,9 @@ export const QuestionDetail = () => {
       {/* Header (from Lovable's file) */}
       <div className="container mx-auto px-6 py-8 max-w-7xl">
         <div>
-        <Link to="/history" className="back-link">
+        <Link to="/profile" className="back-link">
           <span className="back-arrow"/>
-          <span>Back to History</span>
+          <span>Back to Profile</span>
         </Link>
       </div>
 
@@ -126,7 +167,7 @@ export const QuestionDetail = () => {
 
         {/* --- Attempts List (Merged) --- */}
         <div className="space-y-6">
-          {attemptsList.map((attempt, index) => (
+          {attempts.map((attempt, index) => (
             <Card 
               key={attempt.participant_id} 
               className="p-6 bg-card border-0 shadow-card hover:shadow-elegant transition-smooth"
@@ -135,7 +176,7 @@ export const QuestionDetail = () => {
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <h3 className="text-xl font-semibold">
-                    Attempt {attemptsList.length - index}
+                    Attempt {attempts.length - index}
                   </h3>
                   {attempt.is_solved_successfully ? (
                     <Badge className="bg-green-500 text-white flex items-center gap-1">
@@ -155,7 +196,7 @@ export const QuestionDetail = () => {
               <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
                 <span className="flex items-center gap-1">
                   <User className="h-4 w-4" />
-                  Partner: {attempt.partner_username || attempt.partner_id}
+                  Partner: {usernames.get(attempt.partner_id) || attempt.partner_id}
                 </span>
                 <span className="flex items-center gap-1">
                   <Calendar className="h-4 w-4" />
@@ -172,7 +213,7 @@ export const QuestionDetail = () => {
                 <p className="text-sm font-medium mb-2">Your Solution:</p>
                 {/* We replace the <pre> tag with the <SyntaxHighlighter> component */}
                 <SyntaxHighlighter
-                  language={guessLanguage(attempt.code || '')}
+                  language={guessLanguage(attempt.code)}
                   style={vscDarkPlus} // Use the imported theme
                   className="rounded-lg border border-border" // Use Tailwind classes
                   customStyle={{

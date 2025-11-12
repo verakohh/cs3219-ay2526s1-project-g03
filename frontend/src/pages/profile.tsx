@@ -17,7 +17,7 @@ import RecentSessionsList from '../features/progress/RecentSessionsList';
 
 const Profile: React.FC = () => {
   const {user} = useAuth();
-  const navigate = useNavigate();
+  const navigate = useNavigate(); 
   const {username, email, verified, googleOAuthVerified, githubOAuthVerified} = user;
   const isVerified = verified || googleOAuthVerified || githubOAuthVerified;
   const userId = (user as any)?._id ?? (user as any)?.uid ?? '';
@@ -43,10 +43,6 @@ const Profile: React.FC = () => {
       console.error('Failed to resend email:', error);
       alert(error?.message || 'Failed to resend email. Please try again.');
     }
-  };
-
-  const handleResetClick = () => {
-    navigate('/history/reset', { state: { from: 'home' } });
   };
 
   if (!isVerified) {
@@ -175,7 +171,12 @@ const Profile: React.FC = () => {
                 <h3 className="action-title">Question Settings</h3>
                 <p className="action-description">Reset questions</p>
               </div>
-              <button className="action-button reset-button" onClick={handleResetClick}>Reset</button>
+              <button 
+                className="action-button reset-button"
+                onClick={() => navigate('/history/reset', { state: { from: 'home' } })}
+              >
+                Reset
+              </button>
             </div>
           </div>
 
@@ -186,7 +187,7 @@ const Profile: React.FC = () => {
             ) : summariesError ? (
               <div className="p-4 text-center text-muted-foreground">Error loading recent sessions</div>
             ) : userId ? (
-              <RecentSessionsList userId={userId} limit={5} summaries={summaries} />
+              <RecentSessionsList userId={userId} limit={5} />
             ) : null}
           </div>
         </section>
