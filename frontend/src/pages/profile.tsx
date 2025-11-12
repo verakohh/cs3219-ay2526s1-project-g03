@@ -9,11 +9,12 @@ import MatchIcon from '../assets/profile/users-icon.svg';
 import QuestionSettingIcon from '../assets/profile/setting-icon.svg';
 import '../../styles/profile.css';
 import useAuth from '../hooks/useAuth';
-import {Link} from 'react-router-dom';
+import {Link, useNavigate} from 'react-router-dom';
 import {resendEmail} from '../lib/api';
 
 const Profile: React.FC = () => {
   const {user} = useAuth();
+  const navigate = useNavigate(); 
   const {username, email, verified, googleOAuthVerified, githubOAuthVerified} = user;
   const isVerified = verified || googleOAuthVerified || githubOAuthVerified;
 
@@ -134,7 +135,12 @@ const Profile: React.FC = () => {
                 <h3 className="action-title">Question Settings</h3>
                 <p className="action-description">Reset questions</p>
               </div>
-              <button className="action-button reset-button">Reset</button>
+              <button 
+                className="action-button reset-button"
+                onClick={() => navigate('/history/reset', { state: { from: 'home' } })}
+              >
+                Reset
+              </button>
             </div>
           </div>
 
